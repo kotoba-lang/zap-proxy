@@ -1,0 +1,105 @@
+(ns kotoba.zap-proxy.active
+  "Active scanner — injects detection payloads into request parameters and
+  classifies responses. Equivalent of ZAP's active scan rules; items map to
+  IPA「ウェブ健康診断仕様」 injection categories (SQLi, XSS, OS command
+  injection, path traversal, CRLF).
+
+  Safety contract: this library only ever produces *request descriptions* and
+  verdicts. The actual sending is the injected `send-fn` effect (host side).
+  Detection is evidence-based (marker reflection / differential response),
+  never time-based guessing."
+  (:require [clojure.string :as str]
+            [kotoba.zap-proxy.core :as core]))
+
+;; ---- payload tables (detection-grade, benign; no destructive payloads) ----
+
+(def sqli-payloads
+  "Error-based SQLi detection strings (IPA No.1-6). Evidence = SQL error echo."
+  [{:p "' " :re #"(?i)(SQL syntax|SQLSTATE|syntax error|unterminated quoted string|ORA-\d{5}|MySQLSyntaxErrorException)"}
+   {:p "1' OR '1'='1" :re #"(?i)SQL syntax|SQLSTATE"}
+   {:p "1 OR 1=1" :re #"(?i)SQL syntax|SQLSTATE"}])
+
+(def xss-payloads
+  "Reflected XSS markers (IPA No.18-24). Evidence = our unique marker echoed
+  unescaped in the response body."
+  [{:p "zappx\"><script>zpx1699()</script>" :re #"(?i)<script>zpx1699\(\)</script>"}
+   {:p "zappx\" onerror=zpx1699() x=\"" :re #"(?i)onerror=zpx1699\(\)"}])
+
+(def cmdi-payloads
+  "OS command injection detection (IPA No.7-17). Evidence = marker arithmetic
+  result echoed (e.g. `echo zpx$((31+11))` → zpx42)."
+  [{:p "; echo zpx$((31+11))" :re #"zpx42"}
+   {:p "| echo zpx$((31+11))" :re #"zpx42"}
+   {:p "`echo zpx$((31+11))`" :re #"zpx42"}])
+
+(def trav-payloads
+  "Path traversal (IPA No.29-35). Evidence = canonical file content sentinel."
+  [{:p "../../../../etc/passwd" :re #"root:[x*]?:0:0:"}
+   {:p "..%2f..%2f..%2f..%2fetc%2fpasswd" :re #"root:[x*]?:0:0:"}])
+
+(def crlf-payloads
+  "CRLF injection (IPA No.15-17). Evidence = our marker appearing as a header."
+  [{:p "zpx\r\nX-ZapProbe: 1" :re #"(?i)x-zapprobe"}])
+
+(def rule-families
+  [{:family :sqli :rule-id "40018" :severity :high :title "SQL Injection (IPA インジェクション)"
+    :payloads sqli-payloads}
+   {:family :xss :rule-id "40012" :severity :high :title "Cross-Site Scripting, reflected (IPA XSS)"
+    :payloads xss-payloads}
+   {:family :cmdi :rule-id "40014" :severity :high :title "OS Command Injection (IPA コマンドインジェクション)"
+    :payloads cmdi-payloads}
+   {:family :trav :rule-id "40019" :severity :high :title "Path Traversal (IPA パストラバーサル)"
+    :payloads trav-payloads}
+   {:family :crlf :rule-id "40016" :severity :medium :title "CRLF Injection (IPA CRLFインジェクション)"
+    :payloads crlf-payloads}])
+
+(defn parse-params
+  "Split a URL query string into [{name value}]. Params are what we mutate."
+  [url]
+  (let [[_ q] (re-find #"\?([^#]*)" url)]
+    (if (nil? q)
+      []
+      (->> (str/split q #"&")
+           (map (fn [kv] (let [[k v] (str/split kv #"=" 2)] {:name k :value (or v "")})))
+           vec))))
+
+(defn- substitute
+  "Replace one parameter's value in the URL."
+  [url {:keys [name]} payload]
+  (let [[base q] (str/split url #"\?" 2)]
+    (if (nil? q)
+      url
+      (str base "?"
+           (->> (str/split q #"&")
+                (map (fn [kv]
+                       (let [[k _] (str/split kv #"=" 2)]
+                         (if (= k name) (str k "=" payload) kv))))
+                (str/join "&"))))))
+
+(defn active-scan
+  "Run all active rule families against one URL. `send-fn` is the injected
+  effect: request-map -> response-map. Every probe sends its payload through
+  send-fn and verifies the response against the family's evidence regex; a
+  response containing the baseline behavior only is not a finding.
+
+  Returns a vector of findings (see kotoba.zap-proxy.core/finding)."
+  [{:keys [url send-fn baseline]}]
+  (let [params (parse-params url)
+        baseline-body (or (get baseline :body "") (try (:body (send-fn {:method "GET" :url url :headers {} :body nil})) "" (catch #?(:clj Exception :cljs :default) _ "")))]
+    (vec
+     (for [param params
+           {:keys [rule-id severity title payloads]} rule-families
+           {:keys [p re]} payloads
+           :let [probe-url (substitute url param p)
+                 resp (try (send-fn {:method "GET" :url probe-url :headers {} :body nil})
+                           (catch #?(:clj Exception :cljs :default) _ nil))
+                 body (or (get resp :body "") "")]
+           :when (and resp (re-find re body) (not= body baseline-body))]
+       (core/finding {:rule-id rule-id
+                      :severity severity
+                      :title title
+                      :evidence (str "param " (:name param) " payload " (pr-str p)
+                                     " matched " (pr-str re))
+                      :url url
+                      :param (:name param)
+                      :solution "Validate/sanitize the parameter server-side; use parameterized queries, contextual output encoding, and no shell composition."})))))

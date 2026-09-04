@@ -1,0 +1,52 @@
+;; Rule registry — the machine-readable list of what this stack diagnoses.
+;; IDs follow the ZAP-style numeric convention but are our own definitions.
+;; Mapping column points at the IPA「ウェブ健康診断仕様」 item (see
+;; orgs/cloud-itonami/app-wvme SPEC.tsv) and the OWASP STG category.
+[{:zap-proxy.rule/id "10038"
+  :zap-proxy.rule/kind :passive
+  :zap-proxy.rule/title "Security headers missing"
+  :zap-proxy.rule/severity :low
+  :zap-proxy.rule/ipa "セキュリティ関連HTTPヘッダの出力"
+  :zap-proxy.rule/owasp "WSTG-CONF-07"}
+ {:zap-proxy.rule/id "10010"
+  :zap-proxy.rule/kind :passive
+  :zap-proxy.rule/title "Cookie missing Secure/HttpOnly/SameSite"
+  :zap-proxy.rule/severity :medium
+  :zap-proxy.rule/ipa "セッション管理のCookie属性"
+  :zap-proxy.rule/owasp "WSTG-SESS-02"}
+ {:zap-proxy.rule/id "10027"
+  :zap-proxy.rule/kind :passive
+  :zap-proxy.rule/title "Sensitive information disclosure"
+  :zap-proxy.rule/severity :high
+  :zap-proxy.rule/ipa "Webアプリケーションの情報漏えい"
+  :zap-proxy.rule/owasp "WSTG-INFO-05"}
+ {:zap-proxy.rule/id "40018"
+  :zap-proxy.rule/kind :active
+  :zap-proxy.rule/title "SQL Injection (error-based detection)"
+  :zap-proxy.rule/severity :high
+  :zap-proxy.rule/ipa "SQLインジェクション No.1-6"
+  :zap-proxy.rule/owasp "WSTG-INPV-05"}
+ {:zap-proxy.rule/id "40012"
+  :zap-proxy.rule/kind :active
+  :zap-proxy.rule/title "Reflected XSS"
+  :zap-proxy.rule/severity :high
+  :zap-proxy.rule/ipa "クロスサイトスクリプティング No.18-24"
+  :zap-proxy.rule/owasp "WSTG-INPV-01"}
+ {:zap-proxy.rule/id "40014"
+  :zap-proxy.rule/kind :active
+  :zap-proxy.rule/title "OS Command Injection"
+  :zap-proxy.rule/severity :high
+  :zap-proxy.rule/ipa "コマンドインジェクション No.7-17"
+  :zap-proxy.rule/owasp "WSTG-INPV-12"}
+ {:zap-proxy.rule/id "40019"
+  :zap-proxy.rule/kind :active
+  :zap-proxy.rule/title "Path Traversal"
+  :zap-proxy.rule/severity :high
+  :zap-proxy.rule/ipa "パストラバーサル No.29-35"
+  :zap-proxy.rule/owasp "WSTG-INPV-18"}
+ {:zap-proxy.rule/id "40016"
+  :zap-proxy.rule/kind :active
+  :zap-proxy.rule/title "CRLF Injection"
+  :zap-proxy.rule/severity :medium
+  :zap-proxy.rule/ipa "CRLFインジェクション No.15-17"
+  :zap-proxy.rule/owasp "WSTG-INPV-16"}]

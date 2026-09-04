@@ -1,0 +1,86 @@
+(ns kotoba.zap-proxy.stack-test
+  "Spider + passive + active + cli over an injected mock transport.
+  No socket is opened anywhere in this suite — the effect is a map lookup,
+  which is the whole point of the seam."
+  (:require [clojure.test :refer [deftest is testing]]
+            [kotoba.zap-proxy.spider :as spider]
+            [kotoba.zap-proxy.passive :as passive]
+            [kotoba.zap-proxy.active :as active]
+            [kotoba.zap-proxy.cli :as cli]
+            [kotoba.zap-proxy.report :as report]))
+
+(def ^:private site
+  {"http://t.local/" {:status 200 :headers {"content-type" "text/html"} :body
+                      "<html><body><a href=\"/a\">a</a><a href=\"/x?uid=1\">x</a><a href=\"https://other.example/y\">out</a></body></html>"}
+   "http://t.local/a" {:status 200 :headers {} :body "<html><body><a href=\"/x?uid=1\">x</a></body></html>"}
+   "http://t.local/x?uid=1" {:status 200
+                             :headers {"set-cookie" "sid=abc123; Path=/"}
+                             :body "<html><body>uid is 1 password: hunter2</body></html>"}})
+
+(def ^:private fetch-fn
+  (fn [req] (get site (:url req) {:status 404 :headers {} :body "not found"})))
+
+(deftest spider-test
+  (let [{:keys [pages visited queue-drained?]} (spider/spider {:seed-url "http://t.local/" :fetch-fn fetch-fn})]
+    (is (contains? visited "http://t.local/"))
+    (is (contains? visited "http://t.local/a"))
+    (is (contains? visited "http://t.local/x?uid=1"))
+    (is (= 3 (count pages)))
+    (is (true? queue-drained?))
+    ;; out-of-origin link never fetched
+    (is (not (some #(re-find #"other.example" %) visited)))))
+
+(deftest passive-test
+  (testing "cookie flags"
+    (let [findings (passive/check-cookie-flags
+                    {:url "http://t.local/x?uid=1"}
+                    (get site "http://t.local/x?uid=1"))]
+      (is (>= (count findings) 2)) ; missing Secure, HttpOnly, SameSite (3 expected)
+      (is (every? #(= "10010" (:rule-id %)) findings))))
+  (testing "security headers"
+    (let [findings (passive/check-security-headers
+                    {:url "http://t.local/"}
+                    (get site "http://t.local/"))]
+      (is (= 4 (count findings)))))
+  (testing "sensitive info"
+    (let [findings (passive/check-sensitive-info
+                    {:url "http://t.local/x?uid=1"}
+                    (get site "http://t.local/x?uid=1"))]
+      (is (= 1 (count findings)))
+      (is (= :high (:severity (first findings)))))))
+
+(deftest active-test
+  (testing "SQLi error reflection detected"
+    (let [findings (active/active-scan
+                    {:url "http://t.local/x?uid=1"
+                     :send-fn (fn [{:keys [url]}]
+                                (if (re-find #"'|OR 1=1" url)
+                                  {:status 200 :headers {} :body "SQLSTATE error near input"}
+                                  {:status 200 :headers {} :body "welcome"}))})]
+      (is (some #(= "40018" (:rule-id %)) findings))
+      (is (some #(= "uid" (:param %)) findings))))
+  (testing "benign app: no findings"
+    (let [findings (active/active-scan
+                    {:url "http://t.local/x?uid=1"
+                     :send-fn (fn [_] {:status 200 :headers {} :body "welcome"})})]
+      (is (empty? findings)))))
+
+(deftest cli-pipeline-test
+  (let [doc (cli/scan {:target "http://t.local/" :fetch-fn fetch-fn :active? false})]
+    (is (= "http://t.local/" (:report/target doc)))
+    (is (pos? (:report/total doc)))
+    (is (map? (:report/counts doc)))
+    (is (vector? (:report/findings doc)))))
+
+(deftest report-test
+  (let [doc (cli/scan {:target "http://t.local/" :fetch-fn fetch-fn :active? false})
+        json (report/report-json {:target "http://t.local/" :findings (:report/findings doc)})]
+    (is (re-find #"\"total\":\d+" json))
+    (is (re-find #"\"rule_id\":\"10010\"" json))
+    (is (re-find #"\"rule_id\":\"10038\"" json))
+    (is (re-find #"\"rule_id\":\"10027\"" json))))
+
+(deftest rules-registry-test
+  (let [rules (read-string (slurp "resources/zap_proxy/rules/rules.edn"))]
+    (is (= 8 (count rules)))
+    (is (every? #(contains? % :zap-proxy.rule/id) rules))))
