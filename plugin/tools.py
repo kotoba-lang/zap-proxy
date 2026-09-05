@@ -37,16 +37,32 @@ _REPO = Path(
 
 def _load_targets(ctx: Any = None) -> Dict[str, Dict[str, Any]]:
     targets: Dict[str, Dict[str, Any]] = {}
-    settings: Dict[str, Any] = {}
-    try:
-        getter = getattr(ctx, "get_plugin_settings", None)
-        raw_settings = getter("hermes-zap-proxy") if callable(getter) else {}
-        settings = dict(raw_settings) if isinstance(raw_settings, dict) else {}
-    except Exception:
-        settings = {}
-    for t in settings.get("zap_proxy_targets", []) or []:
-        if isinstance(t, dict) and t.get("url"):
-            targets[_origin(t["url"])] = {"allow_active": bool(t.get("allow_active"))}
+    # 1) ctx.get_config (plugin-relative settings read — the real ctx API).
+    if ctx is not None:
+        try:
+            raw = ctx.get_config("zap_proxy_targets")
+            if isinstance(raw, list):
+                for t in raw:
+                    if isinstance(t, dict) and t.get("url"):
+                        targets.setdefault(_origin(t["url"]), {"allow_active": bool(t.get("allow_active"))})
+        except Exception:
+            pass
+    # 2) direct config.yaml read (survives gateways that don't pass settings).
+    if not targets:
+        try:
+            import yaml  # hermes ships pyyaml
+            cfg_path = os.environ.get("HERMES_CONFIG") or os.path.expanduser("~/.hermes/config.yaml")
+            with open(cfg_path) as f:
+                cfg = yaml.safe_load(f) or {}
+            entries = ((cfg.get("plugins") or {}).get("entries") or {})
+            for key in ("hermes-zap-proxy", "zap-proxy"):
+                raw = ((entries.get(key) or {}).get("settings") or {}).get("zap_proxy_targets") or []
+                for t in raw:
+                    if isinstance(t, dict) and t.get("url"):
+                        targets.setdefault(_origin(t["url"]), {"allow_active": bool(t.get("allow_active"))})
+        except Exception as e:
+            logger.debug("config.yaml target read failed: %s", e)
+    # 3) env override (comma-separated url[:active]).
     env = os.environ.get("ZAP_PROXY_TARGETS", "")
     for entry in env.split(","):
         entry = entry.strip()
