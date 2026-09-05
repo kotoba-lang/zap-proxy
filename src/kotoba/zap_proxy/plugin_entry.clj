@@ -1,0 +1,59 @@
+(ns kotoba.zap-proxy.plugin-entry
+  "Host-side entry for the hermes-zap-proxy plugin.
+
+  Reads one EDN request map on stdin:
+    {:target \"http://host:port\" :active? bool :max-pages N :transport :java-http}
+
+  Prints the report document (EDN) on stdout. The transport effect lives here
+  (java.net.http), keeping the decision core pure. This namespace is the only
+  one in zap-proxy that touches the network."
+  (:require [clojure.edn :as edn]
+            [kotoba.zap-proxy.spider :as spider]
+            [kotoba.zap-proxy.passive :as passive]
+            [kotoba.zap-proxy.active :as active]
+            [kotoba.zap-proxy.report :as report])
+  (:import (java.net URI)
+           (java.net.http HttpClient HttpClient$Redirect HttpRequest HttpRequest$BodyPublishers HttpResponse$BodyHandlers)))
+
+(defn java-fetch-fn
+  "IHttp-equivalent transport over java.net.http. Returns the response map
+  shape the decision core consumes. Redirects follow up to normal policy;
+  per-request timeout 15s."
+  [{:keys [method url headers body]}]
+  (let [client (-> (HttpClient/newBuilder)
+                   (.connectTimeout (java.time.Duration/ofSeconds 15))
+                   (.followRedirects HttpClient$Redirect/NORMAL)
+                   (.build))
+        builder (-> (HttpRequest/newBuilder (URI/create url))
+                    (.timeout (java.time.Duration/ofSeconds 15))
+                    (.GET))]
+    (doseq [[k v] headers]
+      (.header builder k (str v)))
+    (when (and body (not= method "GET"))
+      (.method builder (or method "POST")
+               (HttpRequest$BodyPublishers/ofString (str body))))
+    (let [resp (.send client (.build builder)
+                      (HttpResponse$BodyHandlers/ofString))]
+      {:status (.statusCode resp)
+       :headers (into {} (.map (.headers resp)))
+       :body (.body resp)})))
+
+(defn -main [& _]
+  (let [req (edn/read-string (java.lang.String. (.readAllBytes System/in)))
+        {:keys [target active? max-pages]} req
+        fetch-fn java-fetch-fn
+        {:keys [pages]} (spider/spider {:seed-url target
+                                        :fetch-fn fetch-fn
+                                        :max-pages (or max-pages 50)})
+        passive-findings (vec (mapcat (fn [resp]
+                                        (passive/passive-scan {:url (:url resp)} resp))
+                                      pages))
+        active-findings (if active?
+                          (vec (mapcat (fn [resp]
+                                         (active/active-scan {:url (:url resp)
+                                                              :send-fn fetch-fn}))
+                                       pages))
+                          [])
+        findings (vec (concat passive-findings active-findings))
+        doc (report/report-edn {:target target :findings findings})]
+    (println (pr-str doc))))
