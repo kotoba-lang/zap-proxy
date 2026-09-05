@@ -17,6 +17,24 @@
                              :headers {"set-cookie" "sid=abc123; Path=/"}
                              :body "<html><body>uid is 1 password: hunter2</body></html>"}})
 
+(def ^:private multi-cookie-site
+  "java.net.http style multi-value Set-Cookie — value is a vector (regression:
+  ImmutableCollections$List12 cannot be cast to CharSequence)."
+  {"http://t.local/mc" {:status 200
+                        :headers {"set-cookie" ["kb_locale=ja; Path=/; SameSite=Lax; Secure"
+                                                "sid=abc123; Path=/"]}
+                        :body "<html></html>"}})
+
+(deftest passive-multi-value-set-cookie-test
+  (let [findings (passive/check-cookie-flags
+                  {:url "http://t.local/mc"}
+                  (get multi-cookie-site "http://t.local/mc"))]
+    ;; vector cookie 1: missing HttpOnly → 1 finding; vector cookie 2: missing
+    ;; Secure/HttpOnly/SameSite → 3 findings. Crash here = regression.
+    (is (= 4 (count findings)))
+    (is (every? #(= "10010" (:rule-id %)) findings))
+    (is (every? #(re-find #"sid=abc123|kb_locale" (:evidence %)) findings))))
+
 (def ^:private fetch-fn
   (fn [req] (get site (:url req) {:status 404 :headers {} :body "not found"})))
 

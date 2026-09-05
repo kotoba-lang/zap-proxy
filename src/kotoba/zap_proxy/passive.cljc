@@ -30,12 +30,15 @@
                      :solution (str "Set the " h " response header.")}))))
 
 (defn check-cookie-flags
-  "IPA セッション管理の Cookie 属性 (Secure / HttpOnly / SameSite). RULE 10010."
+  "IPA セッション管理の Cookie 属性 (Secure / HttpOnly / SameSite). RULE 10010.
+  A header value may be a vector (java.net.http multi-value Set-Cookie) —
+  each cookie is checked independently."
   [{:keys [url]} resp]
-  (let [set-cookies (->> (get resp :headers {})
-                         (filter (fn [[k _]] (= (str/lower-case (name k)) "set-cookie")))
-                         (map (fn [v] (if (vector? v) (str/join "; " (map str v)) (str v)))))]
-    (for [sc set-cookies
+  (let [raw (->> (get resp :headers {})
+                 (filter (fn [[k _]] (= (str/lower-case (name k)) "set-cookie")))
+                 (map (fn [[_ v]] v)))
+        cookies (mapcat (fn [v] (if (sequential? v) (map str v) [(str v)])) raw)]
+    (for [sc cookies
           flag [[#"(?i)secure" "Secure"] [#"(?i)httponly" "HttpOnly"] [#"(?i)samesite" "SameSite"]]
           :when (not (re-find (first flag) sc))]
       (core/finding {:rule-id "10010"
