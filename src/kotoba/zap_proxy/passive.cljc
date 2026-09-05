@@ -34,7 +34,7 @@
   [{:keys [url]} resp]
   (let [set-cookies (->> (get resp :headers {})
                          (filter (fn [[k _]] (= (str/lower-case (name k)) "set-cookie")))
-                         (map second))]
+                         (map (fn [v] (if (vector? v) (str/join "; " (map str v)) (str v)))))]
     (for [sc set-cookies
           flag [[#"(?i)secure" "Secure"] [#"(?i)httponly" "HttpOnly"] [#"(?i)samesite" "SameSite"]]
           :when (not (re-find (first flag) sc))]
