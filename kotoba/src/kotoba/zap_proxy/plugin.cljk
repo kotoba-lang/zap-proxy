@@ -1,0 +1,54 @@
+(ns zapprobe9
+  (:export [status-of])
+  (:capabilities #{:http/post}))
+
+(defn raw-post [request [:record :kotoba.http/post-request
+                         [[:url :string]
+                          [:headers [:set [:record :kotoba.http/header
+                                           [[:name :keyword] [:value :string]]]]]
+                          [:body :string]
+                          [:timeout-ms :i64]]]]
+  (typed-cap-call :http/post
+                  [:record :kotoba.http/post-request
+                   [[:url :string]
+                    [:headers [:set [:record :kotoba.http/header
+                                     [[:name :keyword] [:value :string]]]]]
+                    [:body :string]
+                    [:timeout-ms :i64]]]
+                  [:variant :kotoba.http/result
+                   [[:ok [:record :kotoba.http/response
+                          [[:status :i64]
+                           [:headers [:set [:record :kotoba.http/header
+                                            [[:name :keyword] [:value :string]]]]]
+                           [:body :string]]]]
+                    [:error [:record :kotoba.http/error
+                             [[:code :keyword] [:message :string] [:retryable :bool]]]]]]
+                  request))
+
+(defn status-of [result [:variant :kotoba.http/result
+                         [[:ok [:record :kotoba.http/response
+                                [[:status :i64]
+                                 [:headers [:set [:record :kotoba.http/header
+                                                  [[:name :keyword] [:value :string]]]]]
+                                 [:body :string]]]]
+                          [:error [:record :kotoba.http/error
+                                   [[:code :keyword] [:message :string] [:retryable :bool]]]]]]] :i64
+  (variant-match
+   [:variant :kotoba.http/result
+    [[:ok [:record :kotoba.http/response
+           [[:status :i64]
+            [:headers [:set [:record :kotoba.http/header
+                             [[:name :keyword] [:value :string]]]]]
+            [:body :string]]]]
+     [:error [:record :kotoba.http/error
+              [[:code :keyword] [:message :string] [:retryable :bool]]]]]]
+   result
+   [[:ok payload
+     (record-get
+      [:record :kotoba.http/response
+       [[:status :i64]
+        [:headers [:set [:record :kotoba.http/header
+                         [[:name :keyword] [:value :string]]]]]
+        [:body :string]]]
+      payload :status)]
+    [:error payload -1]]))
