@@ -138,9 +138,25 @@ def _to_jsonable(raw: str) -> Any:
 
 
 # ---- tool handlers ----------------------------------------------------------
+# The Hermes registry invokes handlers as handler(args_dict) — one positional
+# dict of the tool-call arguments (see tools/registry.py dispatch). Accept that
+# form natively while still supporting direct keyword calls in tests.
 
-def zap_scan(ctx: Any = None, target: str = "", max_pages: int = 50, **_: Any) -> str:
-    refusal = _gate(ctx, target, active=False)
+def _extract(args: Any, kwargs: Dict[str, Any]) -> tuple:
+    """Tool args may arrive as one positional dict (registry dispatch) or as
+    keywords (direct calls/tests). Normalize to (target, max_pages). The
+    handler forwards its own keyword defaults as None — only non-None
+    keyword values take precedence over the args dict."""
+    merged: Dict[str, Any] = dict(args) if isinstance(args, dict) else {}
+    for k, v in kwargs.items():
+        if v is not None:
+            merged[k] = v
+    return str(merged.get("target") or ""), int(merged.get("max_pages") or 50)
+
+
+def zap_scan(args: Any = None, target: Any = None, max_pages: Any = None, **kwargs: Any) -> str:
+    target, max_pages = _extract(args, {"target": target, "max_pages": max_pages, **kwargs})
+    refusal = _gate(None, target, active=False)
     if refusal:
         return json.dumps({"refused": refusal})
     edn = (f'{{:target "{target}" :active? false :max-pages {int(max_pages)} '
@@ -151,8 +167,9 @@ def zap_scan(ctx: Any = None, target: str = "", max_pages: int = 50, **_: Any) -
     return json.dumps({"target": target, "mode": "passive", **_to_jsonable(result["raw"])})
 
 
-def zap_scan_active(ctx: Any = None, target: str = "", max_pages: int = 50, **_: Any) -> str:
-    refusal = _gate(ctx, target, active=True)
+def zap_scan_active(args: Any = None, target: Any = None, max_pages: Any = None, **kwargs: Any) -> str:
+    target, max_pages = _extract(args, {"target": target, "max_pages": max_pages, **kwargs})
+    refusal = _gate(None, target, active=True)
     if refusal:
         return json.dumps({"refused": refusal})
     edn = (f'{{:target "{target}" :active? true :max-pages {int(max_pages)} '
@@ -163,7 +180,7 @@ def zap_scan_active(ctx: Any = None, target: str = "", max_pages: int = 50, **_:
     return json.dumps({"target": target, "mode": "active", **_to_jsonable(result["raw"])})
 
 
-def zap_scan_rules(ctx: Any = None, **_: Any) -> str:
+def zap_scan_rules(args: Any = None, **_: Any) -> str:
     if not _REPO.exists():
         return json.dumps({"error": f"zap-proxy repo not found at {_REPO}"})
     rules_file = _REPO / "resources/zap_proxy/rules/rules.edn"
