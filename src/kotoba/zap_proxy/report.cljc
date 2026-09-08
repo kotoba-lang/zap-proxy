@@ -1,7 +1,7 @@
 (ns kotoba.zap-proxy.report
   "Report generation. Equivalent of ZAP's report add-on: turns findings into
   an EDN document (canonical) and a JSON rendering. Pure."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [kotoba.zap-proxy.core :as core]))
 
 (def ^:private json-esc

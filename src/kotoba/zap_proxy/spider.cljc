@@ -4,7 +4,7 @@
 
   The HTTP effect is injected: `fetch-fn` receives a request map and returns a
   response map (see kotoba.zap-proxy.core). Nothing here opens a socket."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [kotoba.zap-proxy.core :as core]))
 
 (defn extract-links
