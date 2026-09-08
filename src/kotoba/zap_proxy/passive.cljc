@@ -6,12 +6,12 @@
 
   Pure functions over (request, response) pairs; findings are produced with
   rule IDs from the rules registry."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [kotoba.zap-proxy.core :as core]))
 
 (defn- header-lower [resp name]
   (->> (get resp :headers {})
-       (some (fn [[k v]] (when (= (str/lower-case (str k)) (str/lower-case (str name))) v)))))
+       (some (fn [[k v]] (when (= (str/lower (str k)) (str/lower (str name))) v)))))
 
 (defn check-security-headers
   "IPA 仕様のセキュリティ関連 HTTP ヘッダ出力。RULE 10038 (ZAP-style id)."
@@ -35,7 +35,7 @@
   each cookie is checked independently."
   [{:keys [url]} resp]
   (let [raw (->> (get resp :headers {})
-                 (filter (fn [[k _]] (= (str/lower-case (name k)) "set-cookie")))
+                 (filter (fn [[k _]] (= (str/lower (name k)) "set-cookie")))
                  (map (fn [[_ v]] v)))
         cookies (mapcat (fn [v] (if (sequential? v) (map str v) [(str v)])) raw)]
     (for [sc cookies

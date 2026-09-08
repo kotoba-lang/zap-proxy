@@ -8,7 +8,8 @@
 
   A scan session is an append-only vector of observations; every rule sees the
   same immutable shapes and reports plain findings maps."
-  {:author "kotoba-lang"})
+  {:author "kotoba-lang"}
+  (:require [kotoba.lang.text]))
 
 (def ^:const finding-severity {:info 0 :low 1 :medium 2 :high 3})
 
@@ -49,6 +50,6 @@
   "Strip fragments; keep query. Spider candidates are deduped on this."
   [url]
   (let [clean (if (re-find #"^[a-zA-Z][a-zA-Z0-9+.-]*://" url) url (str "http://" url))]
-    (subs clean 0 (or (some-> (clojure.string/index-of clean "#") (max 0)) (count clean)))))
+    (subs clean 0 (or (some-> (kotoba.lang.text/index-of clean "#") (max 0)) (count clean)))))
 
 (def ^:private default-robots-user-agent "zap-proxy/0.1 (clean-room DAST; defense-side)")

@@ -8,7 +8,7 @@
   verdicts. The actual sending is the injected `send-fn` effect (host side).
   Detection is evidence-based (marker reflection / differential response),
   never time-based guessing."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [kotoba.zap-proxy.core :as core]))
 
 ;; ---- payload tables (detection-grade, benign; no destructive payloads) ----
