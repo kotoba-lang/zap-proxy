@@ -41,5 +41,5 @@ active scan → report）だけを参照して、Kotoba/Clojure スタックで�
 ## Test
 
 ```sh
-clojure -M:test
+kbb -M:test
 ```

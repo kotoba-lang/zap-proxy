@@ -4,7 +4,7 @@ Architecture: the decision core is pure .cljc in the zap-proxy repo (judgment,
 no I/O); this plugin is the host side. It:
   1. enforces the own-host gate in PYTHON, before any subprocess runs —
      the model cannot talk its way past it;
-  2. shells out to `clojure -M -m kotoba.zap-proxy.plugin-entry` with the
+  2. shells out to `kbb -M -m kotoba.zap-proxy.plugin-entry` with the
      request on stdin (EDN), reads the report on stdout (EDN);
   3. never passes raw shell strings — argv is a fixed list.
 
