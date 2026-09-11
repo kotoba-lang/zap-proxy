@@ -1,0 +1,14 @@
+{:format :kotoba.cljk-origin/v1
+ :renamed-on "2026-09-11"
+ :decision "adr-2609111500-cljk-rename-all-clojure-source (com-junkawasaki/root 90-docs/adr; owner instruction 2026-09-11)"
+ :rule "value = the extension the file had before the rename. A path ending in .clj.cljk or .cljs.cljk kept it in the name because both platform files existed (or the plain target was taken)."
+ :origins
+ {"src/kotoba/zap_proxy/active.cljk" ".cljc"
+  "src/kotoba/zap_proxy/cli.cljk" ".cljc"
+  "src/kotoba/zap_proxy/core.cljk" ".cljc"
+  "src/kotoba/zap_proxy/passive.cljk" ".cljc"
+  "src/kotoba/zap_proxy/plugin_entry.cljk" ".clj"
+  "src/kotoba/zap_proxy/report.cljk" ".cljc"
+  "src/kotoba/zap_proxy/spider.cljk" ".cljc"
+  "test/kotoba/zap_proxy/core_test.cljk" ".cljc"
+  "test/kotoba/zap_proxy/stack_test.cljk" ".cljc"}}

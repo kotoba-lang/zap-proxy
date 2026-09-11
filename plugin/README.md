@@ -11,7 +11,7 @@ plugin/
 ├── __init__.py   # register(ctx) — 3 tools を toolset "zap-proxy" に登録
 ├── schemas.py    # LLM が読むツール仕様（引数・説明）
 └── tools.py      # ハンドラ。own-host gate はここでコードとして強制
-src/kotoba/zap_proxy/plugin_entry.clj  # 判定核と agent の橋。EDN in → EDN report out
+src/kotoba/zap_proxy/plugin_entry.cljk  # 判定核と agent の橋。EDN in → EDN report out
 ```
 
 ## ツール
