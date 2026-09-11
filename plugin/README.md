@@ -29,7 +29,7 @@ src/kotoba/zap_proxy/plugin_entry.cljk  # 判定核と agent の橋。EDN in →
    subprocess を起動する前に拒否。第三者 host は原理的に scan できない。
 2. **active の二重 gate**: `allow_active: true` が無い target には主走査も拒否。
 3. **効果の分離**: ネットワーク効果は `plugin_entry.clj`（java.net.http transport）だけが
-   持ち、判定核は pure のまま。plugin は `clojure -M -m kotoba.zap-proxy.plugin-entry`
+   持ち、判定核は pure のまま。plugin は `kbb -M -m kotoba.zap-proxy.plugin-entry`
    を固定 argv で呼ぶ（shell 文字列を組まない）。
 
 ## install（この workspace）
