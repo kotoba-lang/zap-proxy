@@ -2,7 +2,9 @@
   "Spider + passive + active + cli over an injected mock transport.
   No socket is opened anywhere in this suite — the effect is a map lookup,
   which is the whole point of the seam."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn :as edn]
+            [kotoba.lang.fs :as fs]
+            [kotoba.lang.fs-host :as fs-host] [clojure.test :refer [deftest is testing]]
             [kotoba.zap-proxy.spider :as spider]
             [kotoba.zap-proxy.passive :as passive]
             [kotoba.zap-proxy.active :as active]
@@ -99,6 +101,8 @@
     (is (re-find #"\"rule_id\":\"10027\"" json))))
 
 (deftest rules-registry-test
-  (let [rules (read-string (slurp "resources/zap_proxy/rules/rules.edn"))]
+  (let [filesystem (fs-host/host-filesystem
+                   {:root (.realpathSync (js/require "fs") ".")})
+        rules (edn/read-string (fs/read filesystem "resources/zap_proxy/rules/rules.edn"))]
     (is (= 8 (count rules)))
     (is (every? #(contains? % :zap-proxy.rule/id) rules))))

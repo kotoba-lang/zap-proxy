@@ -1,0 +1,10 @@
+{:paths ["src" "resources" "test"]
+ ;; kbb reads this file and does NOT read deps.edn: coordinates that live only
+ ;; there are invisible to the engine (measured 2026-09-13 — `kbb -M:test`
+ ;; answered "Could not find namespace: kotoba.lang.text"). The git sha is
+ ;; copied byte-for-byte from deps.edn. `:paths` mirrors deps.edn + the test
+ ;; alias's extra-paths.
+ :deps {io.github.kotoba-lang/text {:git/sha "73bdb13ae7a3d004b44bca08be03a3191157a38f"}
+        ;; the stack test reads the rule pack through the capability-injected
+        ;; fs seam (same adapter pattern as cybersecurity / opencloud).
+        io.github.kotoba-lang/fs   {:local/root "../../kotoba-lang/fs"}}}

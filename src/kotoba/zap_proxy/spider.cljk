@@ -52,18 +52,34 @@
     :fetch-fn    request-map -> response-map (required; the injected effect)
   Returns {:pages [...response maps] :visited #{urls} :queue-drained? bool}"
   [{:keys [seed-url fetch-fn max-pages] :or {max-pages 50}}]
-  (loop [queue (into clojure.lang.PersistentQueue/EMPTY [seed-url])
-         visited #{}
-         pages []]
-    (if (or (empty? queue) (>= (count pages) max-pages))
-      {:pages pages :visited visited :queue-drained? (empty? queue)}
-      (let [url (peek queue)
-            rest (pop queue)]
-        (if (or (contains? visited url) (not (core/same-origin? seed-url url)))
-          (recur rest visited pages)
-          (let [resp (fetch-fn {:method "GET" :url url :headers {} :body nil})
-                resp (assoc resp :url url)
-                new (extract-candidates seed-url (get resp :body ""))]
-            (recur (reduce conj rest new)
-                   (conj visited url)
-                   (conj pages resp))))))))
+  ;; BFS queue as the amortized functional pair: `pending` is the front list,
+  ;; `in` accumulates in order; when pending drains, pending = in reversed
+  ;; and in resets. cljs has no clojure.lang.PersistentQueue (measured).
+  ;; Queue semantics: pop from pending's head, conj new URLs onto in's tail
+  ;; so FIFO order is preserved across the reversal.
+  (let [pop-front (fn [[pending in]]
+                    (cond
+                      (seq pending) [(first pending) [(rest pending) in]]
+                      (seq in)      (let [front (reverse in)]
+                                      [(first front) [(rest front) []]])
+                      :else         [nil [[] []]]))
+        enqueue  (fn [[pending in] xs] [pending (vec (concat in xs))])]
+    (loop [url    seed-url
+           queue  [[seed-url] []]
+           visited #{}
+           pages  []]
+      (cond
+        (nil? url)
+        {:pages pages :visited visited :queue-drained? true}
+
+        (>= (count pages) max-pages)
+        {:pages pages :visited visited :queue-drained? false}
+
+        :else
+        (let [[nxt queue] (pop-front queue)]
+          (if (or (contains? visited url) (not (core/same-origin? seed-url url)))
+            (recur nxt queue visited pages)
+            (let [resp (fetch-fn {:method "GET" :url url :headers {} :body nil})
+                  resp (assoc resp :url url)
+                  new (extract-candidates seed-url (get resp :body ""))]
+              (recur nxt (enqueue queue new) (conj visited url) (conj pages resp)))))))))
