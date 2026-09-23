@@ -7,7 +7,7 @@
   Prints the report document (EDN) on stdout. The transport effect lives here
   (java.net.http), keeping the decision core pure. This namespace is the only
   one in zap-proxy that touches the network."
-  (:require [clojure.edn :as edn]
+  (:require [kotoba.lang.edn :as edn]
             [kotoba.zap-proxy.spider :as spider]
             [kotoba.zap-proxy.passive :as passive]
             [kotoba.zap-proxy.active :as active]
