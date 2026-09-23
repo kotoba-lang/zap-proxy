@@ -2,7 +2,7 @@
   "Spider + passive + active + cli over an injected mock transport.
   No socket is opened anywhere in this suite — the effect is a map lookup,
   which is the whole point of the seam."
-  (:require [clojure.edn :as edn]
+  (:require [kotoba.lang.edn :as edn]
             [kotoba.lang.fs :as fs]
             [kotoba.lang.fs-host :as fs-host] [clojure.test :refer [deftest is testing]]
             [kotoba.zap-proxy.spider :as spider]
