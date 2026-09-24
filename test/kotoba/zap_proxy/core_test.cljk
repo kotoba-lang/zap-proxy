@@ -1,5 +1,5 @@
 (ns kotoba.zap-proxy.core-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotoba.zap-proxy.core :as core]))
 
 (deftest target-origin-test
