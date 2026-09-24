@@ -4,7 +4,7 @@
   which is the whole point of the seam."
   (:require [kotoba.lang.edn :as edn]
             [kotoba.lang.fs :as fs]
-            [kotoba.lang.fs-host :as fs-host] [clojure.test :refer [deftest is testing]]
+            [kotoba.lang.fs-host :as fs-host] [kotoba.test :refer [deftest is testing]]
             [kotoba.zap-proxy.spider :as spider]
             [kotoba.zap-proxy.passive :as passive]
             [kotoba.zap-proxy.active :as active]
