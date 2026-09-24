@@ -1,0 +1,26 @@
+{
+  "jobs": [
+    {
+      "base_url": "https://api.murakumo.cloud/v1",
+      "context_from": null,
+      "deliver": "local",
+      "enabled": false,
+      "enabled_toolsets": null,
+      "id": "953c626305f2",
+      "model": "mishima",
+      "name": "zap-toolchain-probe",
+      "no_agent": true,
+      "prompt": "",
+      "provider": "murakumo",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * *",
+        "display": "0 7 * * *"
+      },
+      "script": "zap-scanner-probe.py",
+      "skill": null,
+      "skills": [],
+      "workdir": null
+    }
+  ]
+}
