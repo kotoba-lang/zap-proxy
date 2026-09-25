@@ -103,7 +103,7 @@ plugins:
             allow_active: false
           - url: https://kotobase.net
             allow_active: false
-_config_version: 45
+_config_version: 46
 agent:
   max_turns: 500
   run_budget_seconds: 600
