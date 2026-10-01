@@ -20,15 +20,24 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
-_REPO = Path(
-    os.environ.get(
-        "ZAP_PROXY_REPO",
-        str(Path.home() / "github/com-junkawasaki/orgs/kotoba-lang/zap-proxy"),
-    )
-)
+
+def _repo_root() -> Path:
+    """Resolve the checkout containing deps.edn without a machine-local path."""
+    override = os.environ.get("ZAP_PROXY_REPO")
+    if override:
+        return Path(override).expanduser().resolve()
+    plugin_dir = Path(__file__).resolve().parent
+    for candidate in (plugin_dir.parent, plugin_dir):
+        if (candidate / "deps.edn").is_file() and (candidate / "src").is_dir():
+            return candidate
+    return plugin_dir.parent
+
+
+_REPO = _repo_root()
 
 # ---- own-host gate ---------------------------------------------------------
 # Sources, in order: ZAP_PROXY_TARGETS env (comma-separated "url[:active]"),
@@ -44,14 +53,20 @@ def _load_targets(ctx: Any = None) -> Dict[str, Dict[str, Any]]:
             if isinstance(raw, list):
                 for t in raw:
                     if isinstance(t, dict) and t.get("url"):
-                        targets.setdefault(_origin(t["url"]), {"allow_active": bool(t.get("allow_active"))})
+                        try:
+                            targets.setdefault(_origin(t["url"]), {"allow_active": bool(t.get("allow_active"))})
+                        except ValueError:
+                            logger.warning("Ignoring invalid zap_proxy_targets URL")
         except Exception:
             pass
     # 2) direct config.yaml read (survives gateways that don't pass settings).
     if not targets:
         try:
             import yaml  # hermes ships pyyaml
-            cfg_path = os.environ.get("HERMES_CONFIG") or os.path.expanduser("~/.hermes/config.yaml")
+            cfg_path = os.environ.get("HERMES_CONFIG")
+            if not cfg_path:
+                hermes_home = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+                cfg_path = str(hermes_home / "config.yaml")
             with open(cfg_path) as f:
                 cfg = yaml.safe_load(f) or {}
             entries = ((cfg.get("plugins") or {}).get("entries") or {})
@@ -59,7 +74,10 @@ def _load_targets(ctx: Any = None) -> Dict[str, Dict[str, Any]]:
                 raw = ((entries.get(key) or {}).get("settings") or {}).get("zap_proxy_targets") or []
                 for t in raw:
                     if isinstance(t, dict) and t.get("url"):
-                        targets.setdefault(_origin(t["url"]), {"allow_active": bool(t.get("allow_active"))})
+                        try:
+                            targets.setdefault(_origin(t["url"]), {"allow_active": bool(t.get("allow_active"))})
+                        except ValueError:
+                            logger.warning("Ignoring invalid zap_proxy_targets URL")
         except Exception as e:
             logger.debug("config.yaml target read failed: %s", e)
     # 3) env override (comma-separated url[:active]).
@@ -71,21 +89,40 @@ def _load_targets(ctx: Any = None) -> Dict[str, Dict[str, Any]]:
         active = False
         if entry.endswith(":active"):
             active, entry = True, entry[: -len(":active")]
-        targets.setdefault(_origin(entry), {"allow_active": active})
+        try:
+            targets.setdefault(_origin(entry), {"allow_active": active})
+        except ValueError:
+            logger.warning("Ignoring invalid ZAP_PROXY_TARGETS URL")
     return targets
 
 
 def _origin(url: str) -> str:
-    u = url if "://" in url else "http://" + url
-    scheme, rest = u.split("://", 1)
-    hostport = rest.split("/", 1)[0]
-    if ":" not in hostport:
-        hostport += ":443" if scheme == "https" else ":80"
-    return f"{scheme.lower()}://{hostport.lower()}"
+    """Return a canonical HTTP(S) origin and reject ambiguous target syntax."""
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError("target must be a non-empty URL")
+    value = url.strip()
+    parsed = urlsplit(value if "://" in value else f"http://{value}")
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise ValueError("target scheme must be http or https")
+    if not parsed.hostname or parsed.username is not None or parsed.password is not None:
+        raise ValueError("target must have a host and no embedded credentials")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("target port is invalid") from exc
+    port = port or (443 if parsed.scheme.lower() == "https" else 80)
+    host = parsed.hostname.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    return f"{parsed.scheme.lower()}://{host}:{port}"
 
 
 def _gate(ctx: Any, target: str, active: bool) -> Optional[str]:
     """Return a refusal reason, or None when allowed."""
+    try:
+        target_origin = _origin(target)
+    except ValueError as exc:
+        return f"Invalid target URL: {exc}."
     targets = _load_targets(ctx or {})
     if not targets:
         return (
@@ -94,13 +131,13 @@ def _gate(ctx: Any, target: str, active: bool) -> Optional[str]:
             "ZAP_PROXY_TARGETS='http://host:port[,http://host2:active]'. "
             "This gate exists so the agent cannot scan third-party hosts."
         )
-    entry = targets.get(_origin(target))
+    entry = targets.get(target_origin)
     if entry is None:
         allowed = ", ".join(sorted(targets))
-        return f"Target origin {_origin(target)} is not in zap_proxy_targets (allowed: {allowed}). Refusing to scan hosts outside the ledger."
+        return f"Target origin {target_origin} is not in zap_proxy_targets (allowed: {allowed}). Refusing to scan hosts outside the ledger."
     if active and not entry.get("allow_active"):
         return (
-            f"Target {_origin(target)} is registered without allow_active. "
+            f"Target {target_origin} is registered without allow_active. "
             "Active scan refused — record allow_active: true for this target first."
         )
     return None
@@ -151,7 +188,21 @@ def _extract(args: Any, kwargs: Dict[str, Any]) -> tuple:
     for k, v in kwargs.items():
         if v is not None:
             merged[k] = v
-    return str(merged.get("target") or ""), int(merged.get("max_pages") or 50)
+    target = str(merged.get("target") or "")
+    max_pages = int(merged.get("max_pages") or 50)
+    if not 1 <= max_pages <= 500:
+        raise ValueError("max_pages must be between 1 and 500")
+    return target, max_pages
+
+
+def _edn_request(target: str, active: bool, max_pages: int) -> str:
+    # JSON string syntax is a strict subset of EDN string syntax and safely
+    # escapes quotes, backslashes and control characters from the URL.
+    encoded_target = json.dumps(target, ensure_ascii=False)
+    return (
+        f"{{:target {encoded_target} :active? {'true' if active else 'false'} "
+        f":max-pages {max_pages} :transport :java-http}}"
+    )
 
 
 def zap_scan(args: Any = None, target: Any = None, max_pages: Any = None, **kwargs: Any) -> str:
@@ -159,8 +210,7 @@ def zap_scan(args: Any = None, target: Any = None, max_pages: Any = None, **kwar
     refusal = _gate(None, target, active=False)
     if refusal:
         return json.dumps({"refused": refusal})
-    edn = (f'{{:target "{target}" :active? false :max-pages {int(max_pages)} '
-           f':transport :java-http}}')
+    edn = _edn_request(target, False, max_pages)
     result = _run_core(edn)
     if "error" in result:
         return json.dumps(result)
@@ -172,8 +222,7 @@ def zap_scan_active(args: Any = None, target: Any = None, max_pages: Any = None,
     refusal = _gate(None, target, active=True)
     if refusal:
         return json.dumps({"refused": refusal})
-    edn = (f'{{:target "{target}" :active? true :max-pages {int(max_pages)} '
-           f':transport :java-http}}')
+    edn = _edn_request(target, True, max_pages)
     result = _run_core(edn)
     if "error" in result:
         return json.dumps(result)

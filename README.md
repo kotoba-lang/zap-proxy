@@ -42,4 +42,19 @@ active scan → report）だけを参照して、Kotoba/Clojure スタックで�
 
 ```sh
 kbb -M:test
+python3 -m unittest plugin.test_tools
 ```
+
+## Hermes plugin
+
+The repository root is also an installable Hermes plugin. Installation keeps
+the Python host adapter, `.cljk` decision core, rule registry, and pinned
+dependencies in one reviewed checkout:
+
+```sh
+hermes plugins install kotoba-lang/zap-proxy --ref <40-character-commit> --enable
+```
+
+Passive and active scans are refused until the target origin is listed under
+`plugins.entries.hermes-zap-proxy.settings.zap_proxy_targets`. Active scanning
+also requires `allow_active: true`. The host must provide the `clojure` CLI.

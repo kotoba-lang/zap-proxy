@@ -1,7 +1,8 @@
 name: hermes-zap-proxy
-version: 0.1.0
+version: 0.2.0
 description: "DAST scanning via the kotoba-lang/zap-proxy decision core (clean-room OWASP ZAP equivalent). Passive scan by default; active scan double-gated (config allow_active per target). Own-host gate enforced in code, not model judgment."
 author: "kotoba-lang"
+kind: standalone
 provides_tools:
   - zap_scan
   - zap_scan_active

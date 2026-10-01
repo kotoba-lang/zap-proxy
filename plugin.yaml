@@ -1,0 +1,19 @@
+name: hermes-zap-proxy
+version: 0.2.0
+description: "DAST scanning via the kotoba-lang/zap-proxy decision core. Passive scan by default; active scan requires an allowlisted target with allow_active."
+author: "kotoba-lang"
+kind: standalone
+provides_tools:
+  - zap_scan
+  - zap_scan_active
+  - zap_scan_rules
+manifest_version: 2
+api_version: 1
+license: MIT
+homepage: https://github.com/kotoba-lang/zap-proxy
+tags: [security, dast, scanner]
+config_schema:
+  zap_proxy_targets:
+    type: list
+    default: []
+    description: "Targets owned by the operator. Each entry is {url: http://host:port, allow_active: bool}; all other origins are refused."
