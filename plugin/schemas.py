@@ -13,7 +13,8 @@ ZAP_SCAN = {
     "name": "zap_scan",
     "description": (
         "Run a passive (non-intrusive) DAST scan of a target URL using the "
-        "kotoba-lang/zap-proxy decision core (clean-room ZAP equivalent). Checks "
+        "kotoba-lang/zap-proxy decision core (independent implementation; does not "
+        "include or call OWASP ZAP). Checks "
         "security headers, cookie flags, and sensitive-info disclosure. Only "
         "targets recorded in zap_proxy_targets config are allowed — third-party "
         "hosts are refused. Returns a findings list with rule ids, severities, "

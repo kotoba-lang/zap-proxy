@@ -1,6 +1,6 @@
 # zap-scanner — kotoba-lang/zap-proxy 定期診断 bot
 
-`kotoba-lang/zap-proxy`（clean-room ZAP 相当 DAST スタック、ADR-2609060001）を
+`kotoba-lang/zap-proxy`（Kotoba/Clojure で書いた独自の DAST スタック。OWASP ZAP は含まず呼び出さない。ADR-2609060001）を
 使って、**自分たちが管理する host** の脆弱性診断を定期実行し、結果を
 propose-only で報告する bot。
 
