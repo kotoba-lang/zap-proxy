@@ -1,5 +1,5 @@
 (ns kotoba.zap-proxy.cli
-  "Application entry — the zap-cli equivalent. Orchestrates
+  "Application entry — one call runs the whole scan. Orchestrates
   spider → passive scan (per crawled page) → active scan (opt-in) → report.
 
   The only effects in this namespace are the injected fetch-fn / send-fn the

@@ -1,5 +1,5 @@
 (ns kotoba.zap-proxy.spider
-  "Crawler. Equivalent of ZAP's spider: fetch the seed URL, extract links and
+  "Crawler: fetch the seed URL, extract links and
   form actions, enqueue same-origin candidates, dedupe on normalized URL.
 
   The HTTP effect is injected: `fetch-fn` receives a request map and returns a

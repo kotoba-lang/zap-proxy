@@ -1,6 +1,6 @@
 (ns kotoba.zap-proxy.active
   "Active scanner — injects detection payloads into request parameters and
-  classifies responses. Equivalent of ZAP's active scan rules; items map to
+  classifies responses. Items map to
   IPA「ウェブ健康診断仕様」 injection categories (SQLi, XSS, OS command
   injection, path traversal, CRLF).
 
