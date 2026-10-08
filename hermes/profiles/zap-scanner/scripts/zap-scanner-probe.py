@@ -23,7 +23,7 @@ core_code = (
     "(def rules (read-string (slurp \"resources/zap_proxy/rules/rules.edn\"))) "
     "(println :RULES (count rules))"
 )
-r = subprocess.run(["clojure", "-M", "-e", core_code], capture_output=True, text=True, cwd=REPO, timeout=240)
+r = subprocess.run(["kbb", "-e", core_code], capture_output=True, text=True, cwd=REPO, timeout=240)
 rules_ok = ":RULES 8" in r.stdout
 check("decision core loads + rules registry", r.returncode == 0 and rules_ok,
       "out=" + r.stdout.strip()[-120:] + " err=" + (r.stderr.strip()[-200:] if r.returncode else ""))
@@ -36,7 +36,7 @@ mock_code = (
     "(def doc (cli/scan {:target \"http://t.local/\" :fetch-fn mock :active? false})) "
     "(println :TOTAL (:report/total doc))"
 )
-r = subprocess.run(["clojure", "-M", "-e", mock_code], capture_output=True, text=True, cwd=REPO, timeout=240)
+r = subprocess.run(["kbb", "-e", mock_code], capture_output=True, text=True, cwd=REPO, timeout=240)
 total_ok = ":TOTAL " in r.stdout and any(ch.isdigit() for ch in r.stdout.split(":TOTAL")[-1])
 check("mock scan pipeline", r.returncode == 0 and total_ok,
       "out=" + r.stdout.strip()[-120:] + " err=" + (r.stderr.strip()[-200:] if r.returncode else ""))
