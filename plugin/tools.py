@@ -4,12 +4,17 @@ Architecture: the decision core is pure .cljc in the zap-proxy repo (judgment,
 no I/O); this plugin is the host side. It:
   1. enforces the own-host gate in PYTHON, before any subprocess runs —
      the model cannot talk its way past it;
-  2. shells out to `kbb -M -m kotoba.zap-proxy.plugin-entry` with the
-     request on stdin (EDN), reads the report on stdout (EDN);
+  2. shells out to the engine that can load the .cljc core on THIS host with
+     the request on stdin (EDN) and reads the report on stdout (EDN):
+       - `kbb -M -m kotoba.zap-proxy.kbb-scan` (Node transport, kbb/nbb
+         engine — the production path; clojure -M cannot load .cljc files);
+       - falls back to `clojure -M -m kotoba.zap-proxy.plugin-entry` (JVM,
+         java.net.http transport) when kbb is absent.
   3. never passes raw shell strings — argv is a fixed list.
 
-Transport note: the clojure entry point uses its own injected HTTP effects
-(java.net.http by default) — the plugin never opens sockets itself.
+Transport note: the entry point injects its own HTTP effects (Node subprocess
+in kbb-scan, java.net.http in plugin-entry) — the plugin never opens sockets
+itself.
 """
 from __future__ import annotations
 
@@ -148,12 +153,20 @@ def _gate(ctx: Any, target: str, active: bool) -> Optional[str]:
 def _run_core(edn_request: str) -> Dict[str, Any]:
     if not _REPO.exists():
         return {"error": f"zap-proxy repo not found at {_REPO}"}
+    # Engine selection: kbb (nbb/Node) can load the .cljc core on this host;
+    # clojure -M cannot (FileNotFoundException on .cljc namespaces), so it is
+    # only the fallback for hosts that lack kbb.
+    kbb = shutil.which("kbb")
     clojure = shutil.which("clojure")
-    if not clojure:
-        return {"error": "clojure CLI not on PATH"}
+    if kbb:
+        argv = [kbb, "-M", "-m", "kotoba.zap-proxy.kbb-scan"]
+    elif clojure:
+        argv = [clojure, "-M", "-m", "kotoba.zap-proxy.plugin-entry"]
+    else:
+        return {"error": "neither kbb nor clojure on PATH"}
     try:
         r = subprocess.run(
-            [clojure, "-M", "-m", "kotoba.zap-proxy.plugin-entry"],
+            argv,
             input=edn_request,
             capture_output=True,
             text=True,

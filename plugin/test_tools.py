@@ -49,5 +49,39 @@ class RequestTest(unittest.TestCase):
         self.assertIn(":zap-proxy.rule/id", result["registry_edn"])
 
 
+class EngineTest(unittest.TestCase):
+    """The host engine must be the one that can load the .cljc core."""
+
+    def test_prefers_kbb_when_both_available(self):
+        calls = {}
+        def which(name):
+            return "/usr/bin/" + name if name in ("kbb", "clojure") else None
+        class R: returncode, stdout, stderr = 0, "", ""
+        def run(argv, **_):
+            calls["argv"] = argv
+            return R()
+        with patch.object(tools.shutil, "which", side_effect=which), \
+             patch.object(tools.subprocess, "run", side_effect=run):
+            tools._run_core("{}")
+        self.assertEqual(calls["argv"][:4], ["/usr/bin/kbb", "-M", "-m", "kotoba.zap-proxy.kbb-scan"])
+
+    def test_falls_back_to_clojure_when_kbb_absent(self):
+        def which(name):
+            return "/usr/bin/clojure" if name == "clojure" else None
+        class R: returncode, stdout, stderr = 0, "", ""
+        calls = {}
+        def run(argv, **_):
+            calls["argv"] = argv
+            return R()
+        with patch.object(tools.shutil, "which", side_effect=which), \
+             patch.object(tools.subprocess, "run", side_effect=run):
+            tools._run_core("{}")
+        self.assertEqual(calls["argv"][:4], ["/usr/bin/clojure", "-M", "-m", "kotoba.zap-proxy.plugin-entry"])
+
+    def test_no_engine_is_a_reported_error(self):
+        with patch.object(tools.shutil, "which", return_value=None):
+            self.assertIn("error", tools._run_core("{}"))
+
+
 if __name__ == "__main__":
     unittest.main()

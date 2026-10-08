@@ -7,7 +7,7 @@ is a separate, operator-approved job."""
 import json, subprocess, sys, os, datetime
 
 HOME = os.path.expanduser("~")
-REPO = f"{HOME}/github/com-junkawasaki/orgs/kotoba-lang/zap-proxy"
+REPO = f"{HOME}/github/mithril-lang/zap-proxy"
 out = {"date": datetime.datetime.now().isoformat(timespec="seconds"), "checks": []}
 
 def check(name, ok, detail):
@@ -42,7 +42,7 @@ check("mock scan pipeline", r.returncode == 0 and total_ok,
       "out=" + r.stdout.strip()[-120:] + " err=" + (r.stderr.strip()[-200:] if r.returncode else ""))
 
 # 4. in-scope targets: own-host ledger — listed, not scanned
-ledger = f"{HOME}/github/com-junkawasaki/manifest/origin-domains.edn"
+ledger = f"{HOME}/github/mithril-lang/manifest/origin-domains.edn"
 check("own-host ledger present", os.path.exists(ledger), ledger if os.path.exists(ledger) else "missing")
 
 out["verdict"] = "green" if all(c["ok"] for c in out["checks"]) else "red"
